@@ -1,0 +1,301 @@
+<!doctype html>
+
+<canvas id="canvas_random" width="1280" height="720"></canvas>
+<video id="remoteVideo" autoplay playsinline muted></video>
+<canvas id="canvas" width="640" height="480"></canvas>
+
+<script>   
+    const canvas_random = document.getElementById('canvas_random');
+    const ctx_random = canvas_random.getContext('2d');
+
+    canvas_random.width = window.innerWidth;
+    canvas_random.height = window.innerHeight;
+
+    function random(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    const speed = 20; 
+    const direction = Math.random() * 2 * Math.PI;
+
+    const ball = {
+        x: random(50, canvas_random.width - 50),
+        y: random(50, canvas_random.height - 50),
+        radius: 30,
+        dx: Math.cos(direction) * speed,
+        dy: Math.sin(direction) * speed,
+        color: `hsl(${random(0, 360)}, 80%, 60%)`
+    };
+
+    function drawBall() {
+        ctx_random.beginPath();
+        ctx_random.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx_random.fillStyle = ball.color;
+        ctx_random.fill();
+        ctx_random.closePath();
+    }
+
+    function update() {
+        ctx_random.clearRect(0, 0, canvas_random.width, canvas_random.height);
+
+        drawBall();
+
+        if (ball.x + ball.dx > canvas_random.width - ball.radius || ball.x + ball.dx < ball.radius) {
+        ball.dx *= -1;
+        }
+        if (ball.y + ball.dy > canvas_random.height - ball.radius || ball.y + ball.dy < ball.radius) {
+        ball.dy *= -1;
+        }
+
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+    }
+
+    setInterval(update, 1000 / 30);
+
+    const PROXY_PION           = 1;
+    const PROXY_WEB            = 3;
+    const CLIENT_WEB           = 4;
+    const interval             = 3000;
+
+    const configuration = {
+        iceServers: [
+            
+        ], 
+        encodedInsertableStreams: true,
+        forceEncodedVideoInsertableStreams: true
+    };
+
+    const signalingConn = new WebSocket("wss://192.168.10.10:20000/ws");
+    const pc = new RTCPeerConnection(configuration)
+
+    const localVideo = document.querySelector('#local');
+
+    const canvas = document.querySelector('#canvas')
+    const ctx = canvas.getContext('2d');
+
+    let localWebSocket; 
+    let workerSend;
+
+    let stream;
+    let pingInterval = null;
+    let workerRecv;    
+    let pendingCandidates = [];
+
+    let firstMessageHandled = false;
+    let firstMessagePromise = null;
+
+    if (navigator.userAgent.toLowerCase().includes('firefox')) {
+        workerSend = new Worker('/Firefox/workerSend.js');    
+    }else{
+        workerSend = new Worker('/Chrome/workerSend.js');   
+    }
+
+    workerSend.onmessage = function(event) {
+        const message = event.data;
+    
+        if (message.command == "data") {
+            localWebSocket.send(message.data)
+        }
+    };
+
+    pc.onicecandidate = e => {
+        if (e.candidate && e.candidate.candidate !== "") {
+            signalingConn.send(JSON.stringify(e.candidate))
+        }
+    };
+
+    pc.onconnectionstatechange = e => {
+        if(pc.connectionState == "failed"){
+            location.reload(true);
+        }
+        if (pc.connectionState == "connected"){
+            //document.querySelector('#local').muted = !document.querySelector('#local').muted
+
+            clearInterval(pingInterval)
+
+            const encoder = new TextEncoder();
+            const r = encoder.encode("READY")
+            localWebSocket.send(r)
+        }
+    }
+
+    pc.ontrack = e => {
+        //if(e.track.kind == "video"){
+            setupReceiverTransform(e.receiver);
+        //}
+    };
+
+    function handleEncodedFrame(chunk) {
+        workerSend.postMessage({ command: "chunk", c: chunk });
+    }
+
+    const encoder = new VideoEncoder({
+        output: handleEncodedFrame,
+        error: (e) => console.error(e),
+    });
+
+    encoder.configure({
+        codec: 'vp8',
+        width: 640,
+        height: 480,
+        bitrate: 500_000,
+        framerate: 30,
+    });
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+    createImageBitmap(canvas).then(imageBitmap => {
+        const videoFrame = new VideoFrame(imageBitmap, { timestamp: performance.now() * 1000 });
+        encoder.encode(videoFrame);
+        videoFrame.close();
+    });
+
+
+    function setupReceiverTransform(receiver) {
+        if (navigator.userAgent.toLowerCase().includes('firefox')) {
+            receiver.transform = new RTCRtpScriptTransform(workerSend);  
+        }else{
+            const receiverStreams = receiver.createEncodedStreams();
+            const {
+                readable,
+                writable
+            } = receiverStreams;
+            workerSend.postMessage({command:"init", r: readable, w: writable}, [readable, writable])
+        }
+    }
+
+    function setupSenderTransform(sender, workerRecv) {
+        if (navigator.userAgent.toLowerCase().includes('firefox')) {
+            sender.transform = new RTCRtpScriptTransform(workerRecv);  
+        }else{
+            const senderStreams = sender.createEncodedStreams();
+            const {
+                readable,
+                writable
+            } = senderStreams;
+        
+            workerRecv.postMessage({command:"init", r: readable, w: writable }, [readable, writable])
+        }
+    }
+
+    function waitForCanPlay(videoElement) {
+        if (canvas_random.captureStream) {
+            stream = canvas_random.captureStream();
+        } else if (canvas_random.mozCaptureStream) {
+            stream = canvas_random.mozCaptureStream();
+        }
+    }
+    
+    signalingConn.addEventListener('open', (event) => {
+        console.log('WebSocket connection opened');
+        
+        const encoder = new TextEncoder();
+        const r = encoder.encode("wss://192.168.40.40:20002/ws")
+        const message = new Uint8Array([CLIENT_WEB]);
+
+        const finalMessage = new Uint8Array(message.length + r.length);
+    
+        finalMessage.set(message, 0);
+        finalMessage.set(r, message.length);
+
+        signalingConn.send(finalMessage);
+
+        pingInterval = setInterval(function() {
+            signalingConn.send("ping"); 
+        }, interval);
+    });
+
+    const messageQueue = [];
+    let processing = false;
+
+    signalingConn.addEventListener('message', (event) => {
+        messageQueue.push(event.data);
+        processQueue();
+    });
+  
+    async function processQueue() {
+        if (processing) return; 
+        processing = true;
+    
+        while (messageQueue.length > 0) {
+            const data = messageQueue.shift();
+            await handleMessage(data);
+        }
+    
+        processing = false;
+    }
+
+    async function handleMessage(data) {
+        if (data instanceof Blob) {
+            const arrayBuffer = await data.arrayBuffer();
+            const byteArray = new Uint8Array(arrayBuffer);
+            
+            if(byteArray.byteLength == 1){
+                if (byteArray[0] === PROXY_WEB || byteArray[0] === PROXY_PION) {
+                    if (byteArray[0] === PROXY_PION) {
+                        if (navigator.userAgent.toLowerCase().includes('firefox')) {
+                            workerRecv = new Worker('/Firefox/workRecvPion.js');
+                        } else {
+                            workerRecv = new Worker('/Chrome/workRecvPion.js');
+                        }
+                    } else {
+                        if (navigator.userAgent.toLowerCase().includes('firefox')) {
+                            workerRecv = new Worker('/Firefox/workRecvWeb.js');
+                        } else {
+                            workerRecv = new Worker('/Chrome/workRecvWeb.js');
+                        }
+                    }
+
+                    await waitForCanPlay();
+
+                    stream.getTracks().forEach(track => {pc.addTrack(track, stream)}) 
+
+                    pc.getSenders().forEach(sender => {
+                        //if (sender.track.kind === "video") {
+                            setupSenderTransform(sender, workerRecv);
+                        //}
+                    });
+
+                    localWebSocket = new WebSocket("ws://localhost:20005/ws");
+
+                    localWebSocket.addEventListener('message', (event) => {
+                        workerRecv.postMessage({ command: 'data', data: event.data });
+                    });
+                }
+            }else{
+                const text = await data.text();
+                const msg = JSON.parse(text);
+
+                if (!msg) {
+                    return console.log('failed to parse msg');
+                }
+
+                if (msg.candidate) {
+                    await pendingCandidates.push(msg);
+
+                    if (pc.remoteDescription != null) {
+                        if (pendingCandidates.length > 0) {
+                            for (const c of pendingCandidates) {
+                                pc.addIceCandidate(c);
+                            }
+                        }
+                    }
+                } else {
+                    pc.setRemoteDescription(msg);
+
+                    if (pendingCandidates.length > 0) {
+                        for (const c of pendingCandidates) {
+                            pc.addIceCandidate(c);
+                        }
+                    }
+
+                    pc.createAnswer().then(awnser => {
+                        pc.setLocalDescription(awnser);
+                        signalingConn.send(JSON.stringify(awnser));
+                    });
+                }
+            }
+        } 
+    }
+</script>
