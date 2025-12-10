@@ -2,7 +2,7 @@ from netfilterqueue import NetfilterQueue
 from scapy.layers.inet import IP, UDP
 from random import random
 
-FRAME_DROP_RATE = 0.25  # Probability to drop a video frame
+FRAME_DROP_RATE = 0.0 # Probability to drop a video frame
 packet_info = {}
 
 def should_drop_frame():

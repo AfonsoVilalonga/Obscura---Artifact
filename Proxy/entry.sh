@@ -2,7 +2,7 @@
 TEST_N="2"
 NETWORK_C=enp0s9
 NETWORK_B=enp0s10
-DDA="T"
+DDA="no"
 
 #sudo ip link set enp0s10 up
 #sudo dhclient -v enp0s10
@@ -64,8 +64,14 @@ elif [ "$TEST_N" = "9" ]; then
     sudo tc qdisc add dev ${NETWORK_B} root netem delay 25ms
 fi
 
-if [ "$DDA" = "T" ]; then
+if [ "$DDA" = "case_b" ]; then
     sudo python3 DDA.py &
+    sleep 5
+    sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0
+fi
+
+if [ "$DDA" = "case_w" ]; then
+    sudo python3 DDA2.py &
     sleep 5
     sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0
 fi

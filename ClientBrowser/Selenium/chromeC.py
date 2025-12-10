@@ -33,15 +33,15 @@ try:
 
     print("Browser is running. Press Ctrl+C to stop.")
     while True:
-        # logs = driver.get_log("browser")
-        # if logs:
-        #     print("Browser console logs:")
-        #     for entry in logs:
-        #         print(f"[{entry['level']}] {entry['message']}")
-        # else:
-        #     print("No console logs found.")
+        #logs = driver.get_log("browser")
+        #if logs:
+        #    print("Browser console logs:")
+        #    for entry in logs:
+        #        print(f"[{entry['level']}] {entry['message']}")
+        #else:
+        #    print("No console logs found.")
 
-        time.sleep(1)
+        time.sleep(2)
 
 finally:
     driver.quit()

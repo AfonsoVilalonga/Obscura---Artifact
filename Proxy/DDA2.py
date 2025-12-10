@@ -2,7 +2,7 @@ from netfilterqueue import NetfilterQueue
 from scapy.layers.inet import IP, UDP
 from random import random
 
-FRAME_DROP_RATE = 0.25  # Probability to drop a video frame
+FRAME_DROP_RATE = 0.0  # Probability to drop a video frame
 packet_info = {}
 
 def should_drop_frame():
@@ -25,7 +25,6 @@ def process_packet(packet):
 
     # Use SSRC + ports as key (stream identifier)
     key = (pkt.src, pkt.dst, udp.sport, udp.dport)
-    print(key)
     # Extract RTP marker bit and payload type (assume RTP over UDP)
     if len(payload) > 2:
         marker_bit = (payload[1] & 0x80) >> 7

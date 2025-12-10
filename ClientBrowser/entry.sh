@@ -2,8 +2,8 @@
 
 TEST_N="2"
 NETWORK_N=enp0s9
-BROWSER_N=${BROWSER_NAME:-c}
-DDA="T"
+BROWSER_N=${BROWSER_NAME:-f}
+DDA="no"
 
 sudo ip link set enp0s9 up
 sudo dhclient -v enp0s9
@@ -58,11 +58,18 @@ elif [ "$TEST_N" = "9" ]; then
     sudo tc qdisc add dev ${NETWORK_N} parent 1:12 netem delay 25ms
 fi
 
-if [ "$DDA" = "T" ]; then
+if [ "$DDA" = "case_b" ]; then
     sudo python3 DDA.py &
     sleep 5
     sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0
 fi
+
+if [ "$DDA" = "case_w" ]; then
+    sudo python3 DDA2.py &
+    sleep 5
+    sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0
+fi
+
 
 go build .
 ./clientbrowser &
@@ -78,9 +85,9 @@ cd ..
 cd Selenium
 
 if [ "$BROWSER_N" = "f" ]; then
-    python3 firefoxC.py &
+    python3 firefoxC.py 
 else
-    python3 chromeC.py &
+    python3 chromeC.py 
 fi
 
 while [ ! -f /tmp/signal_file ]; do

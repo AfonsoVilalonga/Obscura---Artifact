@@ -5,18 +5,7 @@
   #    sleep 5
  # done
 
-
-
-#http://ipv4.download.thinkbroadband.com/5MB.zip
-#https://freetestdata.com/wp-content/uploads/2025/03/Free_Test_Data_6MB_PDF.pdf
-
-#while true; do
-#  curl --socks5 127.0.0.1:10005 -w "Time to first byte: %{time_starttransfer} s\nTime until transfer began: %{time_pretransfer} s\nTotal time: %{time_total} s\nDownload speed: %{speed_download} bytes/sec\n" -o /dev/null http://ipv4.download.thinkbroadband.com/5MB.zip
-#  sleep 5
-#done
-
-
-for i in $(seq 1 101); do
+for i in $(seq 1 5); do
   curl --socks5 localhost:10005 -w "%{speed_download}\n" -o /dev/null -s http://192.168.50.50:8080/download
   sleep 2
 done

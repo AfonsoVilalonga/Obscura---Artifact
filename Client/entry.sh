@@ -1,7 +1,7 @@
 #!/bin/bash
 
 TEST_N="2"
-DDA="T"
+DDA="no"
 NETWORK_P=enp0s9
 
 #sudo ip link set enp0s9 up
@@ -49,18 +49,24 @@ elif [ "$TEST_N" = "9" ]; then
     sudo tc qdisc add dev ${NETWORK_P} parent 1:12 netem delay 25ms
 fi
 
-if [ "$DDA" = "T" ]; then
+if [ "$DDA" = "case_b" ]; then
     sudo python3 DDA.py &
     sleep 5
     sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0
 fi
 
+if [ "$DDA" = "case_w" ]; then
+    sudo python3 DDA2.py &
+    sleep 5
+    sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0
+fi
+
 go build .
-./Client &
+./Client 
 CLIENT_PID=$!
 
 while [ ! -f /tmp/signal_file ]; do
   sleep 1  
 done
 
-./t.sh > t.txt
+#./t.sh > t.txt

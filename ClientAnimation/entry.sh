@@ -46,7 +46,7 @@ elif [ "$TEST_N" = "9" ]; then
 fi
 
 go build .
-./Client &
+./Client
 CLIENT_PID=$!
 
 while [ ! -f /tmp/signal_file ]; do

@@ -381,6 +381,8 @@ func main() {
 		TLSConfig: tlsConfig,
 	}
 
+	fmt.Println("Ready")
+
 	err := server.ListenAndServeTLS("Config/server.crt", "Config/server.key")
 	fmt.Println(err)
 }
